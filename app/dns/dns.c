@@ -5,145 +5,134 @@
 #include "mem.h"
 #include "osapi.h"
 
-//Listening connection data
 static struct espconn dnsConn;
 static esp_udp dnsUdp;
 
-static const char *localDomains[]={
-    INTERFACE_DOMAIN, //because I can be anybody
+static const char * const domain_list[] = {
+	INTERFACE_DOMAIN, /* this is our apparent server dns name */
 
-    //captive portal domains
-    "google.com", //android , yes I can be Google too    
-    "gsp1.apple.com", //iphone
-    "akamaitechnologies.com",
-    "apple.com",
-    "appleiphonecell.com",
-    "itools.info",
-    "ibook.info",
-    "airport.us",
-    "thinkdifferent.us",
-    "apple.com.edgekey.net",
-    "akamaiedge.net",   
-    "msftncsi.com", //for windows and windows phone,
-    "microsoft.com",
-    NULL
+	//captive portal domains
+	"google.com",//android , yes I can be Google too    
+	"gsp1.apple.com", //iphone
+	"akamaitechnologies.com",
+	"apple.com",
+	"appleiphonecell.com",
+	"itools.info",
+	"ibook.info",
+	"airport.us",
+	"thinkdifferent.us",
+	"apple.com.edgekey.net",
+	"akamaiedge.net",
+	"msftncsi.com", //for windows and windows phone,
+	"microsoft.com",
 };
 
-static int ICACHE_FLASH_ATTR isKnownDNS(char *dns){
+static int ICACHE_FLASH_ATTR
+dns_known(char *dns)
+{
+	int n;
 
-    int i=0;    
-    while(true){
+	for (n = 0; n < sizeof(domain_list) / sizeof(domain_list[0]); n++)
+		if (strstr(dns, domain_list[n]))
+			return 1;
 
-        const char *cmp = localDomains[i];
-
-        if(cmp==NULL)
-            break;
-
-        if(strstr(dns,cmp))
-            return 1;
-
-        i++;
-    }
-
-    return 0;
+	return 0;
 }
 
-static void ICACHE_FLASH_ATTR dnsQueryReceived(void *arg, char *data, unsigned short length) {
+static void ICACHE_FLASH_ATTR
+dns_process_query(void *arg, char *data, unsigned short length)
+{
+	char domain[72 + 12 + 16], *pos = domain;
+	struct espconn *conn = arg;
+	int ofs = 12, len = data[ofs];
 
+	memset(domain, 0, sizeof(domain));
 
-// parse incoming query domain
-    char domain[30];
-    char *writePos=domain;
-    memset(domain,0,30);
-    
-    int offSet=12;   
-    int len=data[offSet];
-    while(len!=0 && offSet<length){
+	while (len && pos < sizeof(domain) - 1 && ofs++ < length) {
+		memcpy(pos, data + ofs, len);
+		pos += len;
+		ofs += len;
+		len = data[ofs];
 
-        offSet++;
-        memcpy(writePos,data+offSet,len);
-        writePos+=len; //advance
-        offSet+=len;
-        len=data[offSet];
+		if (len)
+			*pos++ = '.';
+	}
 
-        if(len!=0){
-            *writePos='.';            
-            writePos++;
-        }
-             
-    }
+	NODE_DBG("%s: %s", __func__, domain);
+	if (!dns_known(domain))
+		return;
 
-    NODE_DBG("DNS Query Received: %s",domain);
-    if(!isKnownDNS(domain))
-       return;
+	/* can we actually assemble the reply with our buffer? */
+	if (length >= sizeof(domain) - 12 - 16)
+		return;
+	
+	pos = domain;
+	
+	*pos++ = data[0];
+	*pos++ = data[1];
+	*pos++ = 0x84 | (data[2] & 1);
+	*pos++ = 0;
+	*pos++ = data[4];
+	*pos++ = data[5];
+	*pos++ = data[4];
+	*pos++ = data[5];
+	*pos++ = 0;
+	*pos++ = 0;
+	*pos++ = 0;
+	*pos++ = 0;
+	
+	memcpy(pos, data + 12, length - 12);
+	pos += length - 12;
 
-    
+	/* Point to the domain name in the question section */
+	*pos++ = 0xC0;
+	*pos++ = 12;
 
-    struct espconn *conn=arg;
-  //build response
-    char response[100] = {data[0], data[1],
-                0b10000100 | (0b00000001 & data[2]), //response, authorative answer, not truncated, copy the recursion bit
-                0b00000000, //no recursion available, no errors
-                data[4], data[5], //Question count
-                data[4], data[5], //answer count
-                0x00, 0x00,       //NS record count
-                0x00, 0x00};      //Resource record count
+	/* Set the type to "Host Address" */
+	*pos++ = 0;
+	*pos++ = 1;
 
-    int idx = 12;
-    memcpy(response+12, data+12, length-12); //Copy the rest of the query section
-    idx += length-12;
+	/* Set the response class to IN */
+	*pos++ = 0;
+	*pos++ = 1;
 
-    //Set a pointer to the domain name in the question section
-    response[idx] = 0xC0;
-    response[idx+1] = 0x0C;
+	/* TTL in seconds, 0 means no caching */
+	*pos++ = 0;
+	*pos++ = 0;
+	*pos++ = 0;
+	*pos++ = 0;
 
-    //Set the type to "Host Address"
-    response[idx+2] = 0x00;
-    response[idx+3] = 0x01;
+	/* RDATA length */
+	*pos++ = 0;
+	*pos++ = 4;
 
-    //Set the response class to IN
-    response[idx+4] = 0x00;
-    response[idx+5] = 0x01;
+	/* RDATA payload is the captive ipv4 address */
+	*pos++ = 192;
+	*pos++ = 168;
+	*pos++ = 4;
+	*pos++ = 1;
 
-    //A 32 bit integer specifying TTL in seconds, 0 means no caching
-    response[idx+6] = 0x00;
-    response[idx+7] = 0x00;
-    response[idx+8] = 0x00;
-    response[idx+9] = 0x00;
-
-    //RDATA length
-    response[idx+10] = 0x00;
-    response[idx+11] = 0x04; //4 byte IP address
-
-    //The IP address
-    response[idx + 12] = 192;
-    response[idx + 13] = 168;
-    response[idx + 14] = 4;
-    response[idx + 15] = 1;
-
-    int ret = espconn_sendto(conn, (uint8_t*)response, idx+16);
-    uint8_t *ip = conn->proto.udp->remote_ip;
-
-    //NODE_DBG("UDP send res : %d ip: %d.%d.%d.%d , port: %d",ret,ip[0],ip[1],ip[2],ip[3],conn->proto.udp->remote_port);
+	espconn_sendto(conn, (uint8_t *)domain, pos - domain);
 }
 
-void ICACHE_FLASH_ATTR init_dns() {
-	
-    uint8_t mode = 1;
-    wifi_softap_set_dhcps_offer_option(OFFER_ROUTER, &mode);
-    wifi_set_broadcast_if(3);
-    //espconn_disconnect(&dnsConn);
-    espconn_delete(&dnsConn);
+void ICACHE_FLASH_ATTR
+init_dns(void)
+{
+	uint8_t mode = 1;
+	int res;
 
-	dnsConn.type=ESPCONN_UDP;
-	dnsConn.state=ESPCONN_NONE;
-	dnsUdp.local_port=(int)53;
-	dnsConn.proto.udp=&dnsUdp;	
-	
-    espconn_regist_recvcb(&dnsConn, dnsQueryReceived);   
+	wifi_softap_set_dhcps_offer_option(OFFER_ROUTER, &mode);
+	wifi_set_broadcast_if(3);
+	//espconn_disconnect(&dnsConn);
+	espconn_delete(&dnsConn);
 
-	int res = espconn_create(&dnsConn);
+	dnsConn.type = ESPCONN_UDP;
+	dnsConn.state = ESPCONN_NONE;
+	dnsUdp.local_port = 53;
+	dnsConn.proto.udp = &dnsUdp;
 
-    NODE_DBG("DNS server init, conn=%p , status=%d", &dnsConn,res);
+	espconn_regist_recvcb(&dnsConn, dns_process_query);
 
+	res = espconn_create(&dnsConn);
+	NODE_DBG("%s: conn=%p , status=%d", __func__, &dnsConn, res);
 }
