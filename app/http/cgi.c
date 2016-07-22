@@ -14,7 +14,7 @@
 #include "user_interface.h"
 #include "c_stdio.h"
 #include "mem.h"
-
+#include "lwip/ip_addr.h"
 #include "user_config.h"
 
 #include "http.h"
@@ -224,15 +224,21 @@ int ICACHE_FLASH_ATTR cgi_check_host(http_connection *connData) {
 			if(config->enable_captive){
 				//to enable a captive portal we should redirect here
 
-				char * redirectUrl = (char *)os_zalloc(strlen(domain)+9); // domain lenght + http:// + / + \0
-				os_strcpy(redirectUrl,"http://");
-				os_strcat(redirectUrl,domain);
-				os_strcat(redirectUrl,"/");
+				struct ip_info station_info;
+				wifi_get_ip_info(0x00,&station_info);
+				if (ip_addr_netcmp((struct ip_addr *)connData->espConnection->proto.tcp->remote_ip,&station_info.ip,&station_info.netmask)==0) {
+					char * redirectUrl = (char *)os_zalloc(strlen(domain)+9); // domain lenght + http:// + / + \0
+					os_strcpy(redirectUrl,"http://");
+					os_strcat(redirectUrl,domain);
+					os_strcat(redirectUrl,"/");
 
-				http_response_REDIRECT(connData, redirectUrl);
+					http_response_REDIRECT(connData, redirectUrl);
 
-				os_free(redirectUrl);
+					os_free(redirectUrl);
 
+				} else{
+				    return HTTPD_CGI_NEXT_RULE;
+				}
 			}
 			else{
 				//bad request
