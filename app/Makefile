@@ -30,11 +30,13 @@ SUBDIRS=    \
     json \
     platform \
     libc \
-    mqtt \
     smart \
     util \
-    sensor \
-    spiffs
+    spiffs \
+    mbedtls
+#    http_get_mbedtls
+
+# sensor mqtt
 
 endif # } PDIR
 
@@ -80,7 +82,8 @@ COMPONENTS_eagle.app.v6 = \
     smart/smart.a \
     util/util.a \
     sensor/sensors.a \
-    spiffs/spiffs.a
+    spiffs/spiffs.a \
+    mbedtls/mbedtls.a
 
 
 LINKFLAGS_eagle.app.v6 = \
