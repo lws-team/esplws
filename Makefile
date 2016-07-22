@@ -5,7 +5,7 @@ ifndef PDIR
 endif
 
 # Base directory for the compiler
-XTENSA_TOOLS_ROOT ?= /opt/xtensa-lx106-elf/bin
+XTENSA_TOOLS_ROOT ?= /projects/esp-open-sdk/xtensa-lx106-elf/bin/
 
 #############################################################
 # Select compile
