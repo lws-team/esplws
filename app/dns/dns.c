@@ -8,59 +8,11 @@
 static struct espconn dnsConn;
 static esp_udp dnsUdp;
 
-static const char * const domain_list[] = {
-	INTERFACE_DOMAIN, /* this is our apparent server dns name */
-
-	//captive portal domains
-	"google.com",//android , yes I can be Google too    
-	"gsp1.apple.com", //iphone
-	"akamaitechnologies.com",
-	"apple.com",
-	"appleiphonecell.com",
-	"itools.info",
-	"ibook.info",
-	"airport.us",
-	"thinkdifferent.us",
-	"apple.com.edgekey.net",
-	"akamaiedge.net",
-	"msftncsi.com", //for windows and windows phone,
-	"microsoft.com",
-};
-
-static int ICACHE_FLASH_ATTR
-dns_known(char *dns)
-{
-	int n;
-
-	for (n = 0; n < sizeof(domain_list) / sizeof(domain_list[0]); n++)
-		if (strstr(dns, domain_list[n]))
-			return 1;
-
-	return 0;
-}
-
 static void ICACHE_FLASH_ATTR
 dns_process_query(void *arg, char *data, unsigned short length)
 {
 	char domain[72 + 12 + 16], *pos = domain;
 	struct espconn *conn = arg;
-	int ofs = 12, len = data[ofs];
-
-	memset(domain, 0, sizeof(domain));
-
-	while (len && pos < sizeof(domain) - 1 && ofs++ < length) {
-		memcpy(pos, data + ofs, len);
-		pos += len;
-		ofs += len;
-		len = data[ofs];
-
-		if (len)
-			*pos++ = '.';
-	}
-
-	NODE_DBG("%s: %s", __func__, domain);
-	if (!dns_known(domain))
-		return;
 
 	/* can we actually assemble the reply with our buffer? */
 	if (length >= sizeof(domain) - 12 - 16)
