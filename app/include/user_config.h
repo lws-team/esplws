@@ -1,9 +1,8 @@
 #ifndef __USER_CONFIG_H__
 #define __USER_CONFIG_H__
 
-
-#define INTERFACE_DOMAIN "smart.relay.com"
-
+#define BRAND_NAME "ivmon"
+#define INTERFACE_DOMAIN "setup."BRAND_NAME".local"
 
 #define FLASH_512K
 // #define FLASH_1M

@@ -26,90 +26,93 @@
 
 #include "dns.h"
 #include "serial_number.h"
-
 #include "http/app.h"
 #include "mqtt/app.h"
-
 #include "sensor/sensors.h"
+
+void ICACHE_FLASH_ATTR
+init_lws(void);
 
 #ifdef DEVELOP_VERSION
 os_timer_t heapTimer;
 
-static void heapTimerCb(void *arg){
-
-    NODE_DBG("FREE HEAP: %d",system_get_free_heap_size());
-
+static void
+heapTimerCb(void *arg)
+{
+	NODE_DBG("FREE HEAP: %d", system_get_free_heap_size());
 }
-
 #endif
 
+static const char hex[] = "0123456789ABCDEF";
 
-
-
-static void config_wifi(){
-    NODE_DBG("Putting AP UP");
-
-    platform_key_led(0);    
-    
-    wifi_station_set_auto_connect(1); 
-    wifi_set_opmode(0x03); // station+ap mode                       
-
-    struct softap_config config;
-    wifi_softap_get_config(&config);
-
-    char ssid[]="SmartRelay"SERIAL_NUMBER;
-
-    strcpy(config.ssid,ssid);
-    memset(config.password,0,64);
-    config.ssid_len=strlen(ssid);
-    config.channel=11;
-    config.authmode=AUTH_OPEN;
-    config.max_connection=4;
-    config.ssid_hidden=0;
-
-    wifi_softap_set_config(&config);
-
-    
+static void b(char *p, unsigned char c)
+{
+	*p++ = hex[c >> 4];
+	*p = hex[c & 0xf];
 }
 
-/******************************************************************************
- * FunctionName : user_init
- * Description  : entry of user application, init user function here
- * Parameters   : none
- * Returns      : none
-*******************************************************************************/
-void user_init(void)
-{   
-    
-    system_update_cpu_freq(160); //overclock :)
+static void
+config_wifi(void)
+{
+	struct softap_config config;
+	unsigned int n;
+	char chipid[8];
+	
+	NODE_DBG("%s", __func__);
+	
+	platform_key_led(0); 
+	
+	wifi_station_set_auto_connect(1); 
+	wifi_set_opmode(3); /* station + ap mode */
 
-    uart_init(BIT_RATE_115200,BIT_RATE_115200);
+	wifi_softap_get_config(&config);
+	
+	strcpy(config.ssid, BRAND_NAME);
+	n = system_get_chip_id();
+	
+	chipid[0] = '-';
+	b(&chipid[1], n >> 16);
+	b(&chipid[3], n >> 8);
+	b(&chipid[5], n);
+	chipid[7] = '\0';
+	
+	strcat(config.ssid, chipid);
+	config.ssid_len = strlen(config.ssid);
 
-    NODE_DBG("User Init");
-
-    uint32_t size = flash_get_size_byte();
-    NODE_DBG("Flash size %d",size);
-   
-    config_wifi();
-    
-	relay_init();   
-    
-    init_dns();
-    init_http_server();
-
-    //uncomment to send data to mqtt broker
-    //mqtt_app_init();    
-
-    //uncomment if you have sensors intalled
-    //sensors_init();
-
-    #ifdef DEVELOP_VERSION
-
-    //arm timer
-    os_memset(&heapTimer,0,sizeof(os_timer_t));
-    os_timer_disarm(&heapTimer);
-    os_timer_setfn(&heapTimer, (os_timer_func_t *)heapTimerCb, NULL);
-    os_timer_arm(&heapTimer, 5000, 1);
-
-    #endif
+	memset(config.password, 0, sizeof(config.password));
+	config.channel = 11;
+	config.authmode = AUTH_OPEN;
+	config.max_connection = 2;
+	config.ssid_hidden = 0;
+	
+	wifi_softap_set_config(&config);
 }
+
+void
+user_init(void)
+{    
+	system_update_cpu_freq(160); // overclock :)
+	
+	uart_init(BIT_RATE_115200, BIT_RATE_115200);
+	
+	NODE_DBG("User Init:  Flash: %dKiB", flash_get_size_byte() >> 10);
+	
+	config_wifi();
+	relay_init();
+	init_dns();
+	init_http_server();
+	
+	/* uncomment to send data to mqtt broker */
+	// mqtt_app_init();    
+	
+	/* uncomment if you have sensors intalled */
+	// sensors_init();
+
+#ifdef DEVELOP_VERSION
+	os_memset(&heapTimer, 0, sizeof(os_timer_t));
+	os_timer_disarm(&heapTimer);
+	os_timer_setfn(&heapTimer, (os_timer_func_t *)heapTimerCb, NULL);
+	os_timer_arm(&heapTimer, 5000, 1);
+#endif
+}
+
