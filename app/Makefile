@@ -23,7 +23,6 @@ GEN_BINS= eagle.app.v6.bin
 SPECIAL_MKTARGETS=$(APP_MKTARGETS)
 SUBDIRS=    \
     user \
-    http \
     dns \
     driver \
     lwip \
@@ -33,7 +32,10 @@ SUBDIRS=    \
     smart \
     util \
     spiffs \
-    mbedtls
+    romfs \
+    lws \
+    lws-glue
+#    mbedtls
 #    http_get_mbedtls
 
 # sensor mqtt
@@ -71,24 +73,27 @@ endif
 
 COMPONENTS_eagle.app.v6 = \
     user/libuser.a \
-    http/http.a \
     dns/dns.a \
     driver/libdriver.a \
     lwip/liblwip.a \
     json/libjson.a \
     platform/libplatform.a \
     libc/liblibc.a \
-    mqtt/mqtt.a \
     smart/smart.a \
     util/util.a \
     sensor/sensors.a \
     spiffs/spiffs.a \
-    mbedtls/mbedtls.a
+    romfs/romfs.a \
+    lws/build/lib/libwebsockets.a \
+    lws-glue/lws-glue.a
 
+#        mbedtls/mbedtls.a \
+#    mqtt/mqtt.a \
 
 LINKFLAGS_eagle.app.v6 = \
 	-L../lib        \
 	-nostdlib	\
+		-Wl,-Map=out.map \
     -T$(LD_FILE)   \
 	-Wl,--no-check-sections	\
     -u call_user_start	\

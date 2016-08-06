@@ -5,7 +5,6 @@
 #include "spi_flash.h"
 #include "pin_map.h"
 #include "user_config.h"
-#include "flash_api.h"
 // Number of resources (0 if not available/not implemented)
 #define NUM_GPIO              GPIO_PIN_NUM
 #define NUM_SPI               2

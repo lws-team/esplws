@@ -178,7 +178,8 @@ else
 endif
 
 html:
-	$(MKFSTOOL) -s app/http/html/ -d app/http/rofs_data.c
+	genromfs -f romfs.img -d app/lws/romfs-files
+	hexdump romfs.img -v  -e '15/1 "0x%02X, " 1/1  " 0x%02X,\n"' > romfs.img.h
 
 .subdirs:
 	@set -e; $(foreach d, $(SUBDIRS), $(MAKE) -C $(d);)

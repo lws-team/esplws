@@ -368,7 +368,7 @@ pwm_init(uint16 freq, uint16 *duty)
         pwm.duty[0] = 0;
     }
 
-    pwm_set_freq(500, 0);
+    pwm_set_freq(50000, 0);
     // pwm_set_freq_duty(freq, duty);
 
     pwm_start();

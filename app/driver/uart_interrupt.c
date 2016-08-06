@@ -8,6 +8,9 @@
 #include "os_type.h"
 #include "util/linked_list.h"
 
+// uncomment to see last logs before crash !!!
+//#define ONLY_USE_FIFO
+
 // UartDev is defined and initialized in rom code.
 extern UartDevice UartDev;
 
@@ -46,12 +49,15 @@ struct tx_item{
 linked_list tx_list[2];
 os_timer_t tx_timer[2];
 
+#define FIFO_HIGH 126
+
+
 //UART TRANSMIT ------------------------------------------------------------
 STATUS uart_tx_one_char(uint8_t uart, uint8_t TxChar)
 {
     while (true){
         uint8_t fifo_cnt = UART_TX_FIFO_COUNT(uart);
-        if (fifo_cnt < 126) {
+        if (fifo_cnt < FIFO_HIGH) {
             break;
         }
     }
@@ -62,7 +68,7 @@ STATUS uart_tx_one_char(uint8_t uart, uint8_t TxChar)
 STATUS uart_tx_one_char_no_wait(uint8_t uart, uint8_t TxChar)
 {
     uint8_t fifo_cnt = UART_TX_FIFO_COUNT(uart);
-    if (fifo_cnt < 126) {
+    if (fifo_cnt < FIFO_HIGH) {
         UART_WRITE_CHAR(uart,TxChar);
     }
     return OK;
@@ -86,7 +92,11 @@ void uart_write(uint8_t uart,uint8_t *data,int len){
 	linked_list *list = &tx_list[uart];
 
 	uint8_t fifo_cnt = UART_TX_FIFO_COUNT(uart);
-    if (fifo_cnt > len && list->size==0) { 
+
+#if !defined(ONLY_USE_FIFO)
+    if (fifo_cnt > len && list->size==0)
+#endif
+{ 
     	//we can write on uart buffer
     	while(len>0){
     		UART_WRITE_CHAR(uart,*data);

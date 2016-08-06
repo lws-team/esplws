@@ -33,7 +33,7 @@ dns_process_query(void *arg, char *data, unsigned short length)
 	*pos++ = 0;
 	*pos++ = 0;
 	
-	memcpy(pos, data + 12, length - 12);
+	ets_memcpy(pos, data + 12, length - 12);
 	pos += length - 12;
 
 	/* Point to the domain name in the question section */
@@ -86,5 +86,5 @@ init_dns(void)
 	espconn_regist_recvcb(&dnsConn, dns_process_query);
 
 	res = espconn_create(&dnsConn);
-	NODE_DBG("%s: conn=%p , status=%d", __func__, &dnsConn, res);
+	//NODE_DBG("%s: conn=%p , status=%d\n", __func__, &dnsConn, res);
 }
